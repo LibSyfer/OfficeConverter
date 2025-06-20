@@ -1,5 +1,6 @@
 ﻿using CommandLine;
 using Microsoft.Office.Interop.Excel;
+using Microsoft.Win32;
 using System.Runtime.InteropServices;
 
 class Options
@@ -59,6 +60,13 @@ internal class Program
                 Console.WriteLine($"Поддерживаемые форматы: {options.SupportedFormats}");
             }
 
+            if (!IsExcelInstalled())
+            {
+                Console.WriteLine("Для работы программы требуется Excel. Microsoft Excel не установлен на этом компьютере");
+                Environment.Exit(1);
+                return;
+            }
+
             Application excelApp = new Application();
             #if DEBUG
             excelApp.Visible = true;
@@ -91,6 +99,21 @@ internal class Program
         {
             Console.WriteLine($"Ошибка: {ex.Message}");
             Environment.Exit(1);
+        }
+    }
+
+    private static bool IsExcelInstalled()
+    {
+        try
+        {
+            using (var key = Registry.ClassesRoot.OpenSubKey("Excel.Application"))
+            {
+                return key != null;
+            }
+        }
+        catch
+        {
+            return false;
         }
     }
 
