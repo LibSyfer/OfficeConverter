@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "OfficeConverter.Excel": {
+      "commandName": "Project",
+      "commandLineArgs": "-s \"D:\\Data\" -t \"D:\\Output\" --verbose"
+    }
+  }
+}
