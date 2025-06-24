@@ -224,6 +224,15 @@ internal class Program
         Workbook? workbook = null;
         try
         {
+            if (!File.Exists(inputFilePath))
+            {
+                throw new FileNotFoundException($"Исходный файл не найден: {inputFilePath}");
+            }
+            if (outputPath.Length > 260)
+            {
+                throw new PathTooLongException($"Слишком длинный путь к файлу: {outputPath}");
+            }
+
             workbook = excelApp.Workbooks.Open(inputFilePath);
             workbook.SaveAs(outputPath, XlFileFormat.xlOpenXMLWorkbook);
             if (verbose)
