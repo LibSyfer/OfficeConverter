@@ -234,7 +234,12 @@ internal class Program
             }
 
             workbook = excelApp.Workbooks.Open(inputFilePath);
-            workbook.SaveAs(outputPath, XlFileFormat.xlOpenXMLWorkbook);
+            workbook.SaveAs(
+                Filename: outputPath,
+                FileFormat: XlFileFormat.xlOpenXMLWorkbook,
+                ConflictResolution: XlSaveConflictResolution.xlLocalSessionChanges,
+                Local: true,
+                AddToMru: false);
             if (verbose)
                 Console.WriteLine($"Конвертирован: {inputFilePath} -> {outputPath}");
             if (logInFile)
