@@ -97,6 +97,15 @@ internal class Program
 
             try
             {
+                if (!CanWriteToFolder(options.TargetDirectory))
+                {
+                    Console.WriteLine($"Недостаточно прав для создания файлов в директории {options.TargetDirectory}");
+                    if (options.LogInFile)
+                        File.AppendAllText(LogFilePath, $"Недостаточно прав для создания файлов в директории {options.TargetDirectory}\n");
+                    Environment.Exit(1);
+                    return;
+                }
+
                 ConvertAllToXlsx(
                     targetPath: options.TargetDirectory,
                     sourcePath: options.SourceDirectory,
@@ -137,7 +146,22 @@ internal class Program
         }
     }
 
-    private static void ConvertAllToXlsx(string targetPath, string sourcePath, HashSet<string> allowedExtensions, Application excelApp, bool overwrite, bool verbose)
+    private static bool CanWriteToFolder(string folderPath)
+    {
+        try
+        {
+            string tempFile = Path.Combine(folderPath, Guid.NewGuid().ToString() + ".tmp");
+            File.WriteAllText(tempFile, "test");
+            File.Delete(tempFile);
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static void ConvertAllToXlsx(string targetPath, string sourcePath, HashSet<string> allowedExtensions, Application excelApp, bool overwrite, bool verbose, bool logInFile)
     {
         bool hasValidFiles = false;
 
