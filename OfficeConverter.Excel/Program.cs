@@ -132,6 +132,8 @@ internal class Program
             var extension = Path.GetExtension(filePath);
             if (allowedExtensions.Contains(extension))
             {
+                Thread.Sleep(500);
+
                 var outputFileName = Path.GetFileNameWithoutExtension(filePath) + ".xlsx";
                 var outputFilePath = Path.Combine(targetPath, outputFileName);
                 if (File.Exists(outputFilePath))
@@ -169,28 +171,26 @@ internal class Program
 
     private static void ConvertToXlsx(string inputFilePath, string outputPath, Application excelApp, bool verbose)
     {
+        Workbook? workbook = null;
         try
         {
-            Workbook workbook = null;
-            try
-            {
-                workbook = excelApp.Workbooks.Open(inputFilePath);
-                workbook.SaveAs(outputPath, XlFileFormat.xlOpenXMLWorkbook);
-                if (verbose)
-                    Console.WriteLine($"Конвертирован: {inputFilePath} -> {outputPath}");
-            }
-            finally
-            {
-                if (workbook != null)
-                {
-                    workbook.Close();
-                    Marshal.ReleaseComObject(workbook);
-                }
-            }
+            workbook = excelApp.Workbooks.Open(inputFilePath);
+            workbook.SaveAs(outputPath, XlFileFormat.xlOpenXMLWorkbook);
+            if (verbose)
+                Console.WriteLine($"Конвертирован: {inputFilePath} -> {outputPath}");
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Ошибка при конвертации {inputFilePath}: {ex.Message}");
+        }
+        finally
+        {
+            if (workbook != null)
+            {
+                workbook.Close();
+                Marshal.FinalReleaseComObject(workbook);
+                workbook = null;
+            }
         }
     }
 }
