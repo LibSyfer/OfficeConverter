@@ -181,8 +181,6 @@ internal class Program
             var extension = Path.GetExtension(filePath);
             if (allowedExtensions.Contains(extension))
             {
-                Thread.Sleep(500);
-
                 var outputFileName = Path.GetFileNameWithoutExtension(filePath) + ".xlsx";
                 var outputFilePath = Path.Combine(targetPath, outputFileName);
                 if (File.Exists(outputFilePath))
