@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OfficeConverter.Excel", "Of
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OfficeConverter.CrossPlatformExcel", "OfficeConverter.CrossPlatformExcel\OfficeConverter.CrossPlatformExcel.csproj", "{D373BCC0-8386-496C-9BED-20EC099866F5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OfficeConverter.Excel.PrepareTestData", "OfficeConverter.Excel.PrepareTestData\OfficeConverter.Excel.PrepareTestData.csproj", "{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -61,6 +63,26 @@ Global
 		{D373BCC0-8386-496C-9BED-20EC099866F5}.Release|x64.Build.0 = Release|Any CPU
 		{D373BCC0-8386-496C-9BED-20EC099866F5}.Release|x86.ActiveCfg = Release|Any CPU
 		{D373BCC0-8386-496C-9BED-20EC099866F5}.Release|x86.Build.0 = Release|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Debug|ARM.ActiveCfg = Debug|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Debug|ARM.Build.0 = Debug|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Debug|x64.Build.0 = Debug|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Debug|x86.Build.0 = Debug|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Release|ARM.ActiveCfg = Release|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Release|ARM.Build.0 = Release|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Release|ARM64.Build.0 = Release|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Release|x64.ActiveCfg = Release|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Release|x64.Build.0 = Release|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Release|x86.ActiveCfg = Release|Any CPU
+		{CD9A6DBE-28FA-452E-B3D5-EA4321EA8A82}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
