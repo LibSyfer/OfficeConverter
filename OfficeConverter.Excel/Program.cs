@@ -84,6 +84,9 @@ internal class Program
             }
 
             Application excelApp = new Application();
+            excelApp.DisplayAlerts = false;
+            excelApp.AskToUpdateLinks = false;
+            excelApp.AlertBeforeOverwriting = false;
             #if DEBUG
             excelApp.Visible = true;
             #else
