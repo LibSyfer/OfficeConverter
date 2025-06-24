@@ -19,10 +19,16 @@ class Options
 
     [Option('o', "overwrite", HelpText = "Перезаписывать существующие файлы")]
     public bool Overwrite { get; set; } = false;
+
+    [Option('l', "log", HelpText = "Логгирование в файл \"log.txt\"")]
+    public bool LogInFile { get; set; } = false;
 }
 
 internal class Program
 {
+    private static string LogFilePath = Path.Combine(Directory.GetCurrentDirectory(), "log.txt");
+    private static string ErrorLogFilePath = Path.Combine(Directory.GetCurrentDirectory(), "errorLog.txt");
+
     private static void Main(string[] args)
     {
         Parser.Default.ParseArguments<Options>(args)
@@ -49,6 +55,8 @@ internal class Program
             if (!Directory.Exists(options.SourceDirectory))
             {
                 Console.WriteLine($"Исходная директория {options.SourceDirectory} не существует");
+                if (options.LogInFile)
+                    File.AppendAllText(LogFilePath, $"Исходная директория {options.SourceDirectory} не существует");
                 Environment.Exit(1);
                 return;
             }
@@ -59,10 +67,18 @@ internal class Program
                 Console.WriteLine($"Сохранение результатов в: {options.TargetDirectory}");
                 Console.WriteLine($"Поддерживаемые форматы: {options.SupportedFormats}");
             }
+            if (options.LogInFile)
+            {
+                File.AppendAllText(LogFilePath, $"Конвертация файлов из: {options.SourceDirectory}\n");
+                File.AppendAllText(LogFilePath, $"Сохранение результатов в: {options.TargetDirectory}\n");
+                File.AppendAllText(LogFilePath, $"Поддерживаемые форматы: {options.SupportedFormats}\n");
+            }
 
             if (!IsExcelInstalled())
             {
                 Console.WriteLine("Для работы программы требуется Excel. Microsoft Excel не установлен на этом компьютере");
+                if (options.LogInFile)
+                    File.AppendAllText(LogFilePath, "Для работы программы требуется Excel. Microsoft Excel не установлен на этом компьютере\n");
                 Environment.Exit(1);
                 return;
             }
@@ -87,7 +103,8 @@ internal class Program
                     allowedExtensions: allowedExtensions,
                     excelApp: excelApp,
                     overwrite: options.Overwrite,
-                    verbose: options.Verbose);
+                    verbose: options.Verbose,
+                    logInFile: options.LogInFile);
             }
             finally
             {
@@ -98,6 +115,9 @@ internal class Program
         catch (Exception ex)
         {
             Console.WriteLine($"Ошибка: {ex.Message}");
+            if (options.LogInFile)
+                File.AppendAllText(LogFilePath, $"Ошибка: {ex.Message}\n");
+            File.AppendAllText(ErrorLogFilePath, $"[{DateTime.UtcNow}] Глобальная ошибка:\n{ex}\n");
             Environment.Exit(1);
         }
     }
@@ -126,7 +146,9 @@ internal class Program
             if (Path.GetFileName(filePath).StartsWith("~$"))
             {
                 if (verbose)
-                    Console.WriteLine($"Skip temporaly file: {filePath}");
+                    Console.WriteLine($"Пропуск временного файла excel: {filePath}");
+                if (logInFile)
+                    File.AppendAllText(LogFilePath, $"Пропуск временного файла excel: {filePath}\n");
                 continue;
             }
             var extension = Path.GetExtension(filePath);
@@ -143,11 +165,15 @@ internal class Program
                         outputFilePath = Path.Combine(targetPath, Path.GetFileNameWithoutExtension(outputFileName) + "-" + Guid.NewGuid().ToString("N") + ".xlsx");
                         if (verbose)
                             Console.WriteLine($"Перезапись выключена, будет создан новый файл: {outputFilePath}");
+                        if (logInFile)
+                            File.AppendAllText(LogFilePath, $"Перезапись выключена, будет создан новый файл: {outputFilePath}\n");
                     }
                     else
                     {
                         if (verbose)
                             Console.WriteLine($"Перезапись включена, будет перезаписан файл: {outputFilePath}");
+                        if (logInFile)
+                            File.AppendAllText(LogFilePath, $"Перезапись включена, будет перезаписан файл: {outputFilePath}\n");
                         File.Delete(outputFilePath);
                     }
                 }
@@ -158,18 +184,18 @@ internal class Program
                     hasValidFiles = true;
                 }
 
-                ConvertToXlsx(filePath, outputFilePath, excelApp, verbose);
+                ConvertToXlsx(filePath, outputFilePath, excelApp, verbose, logInFile);
             }
         }
 
         foreach (var subdir in Directory.EnumerateDirectories(sourcePath))
         {
             var targetSubdir = Path.Combine(targetPath, Path.GetFileName(subdir));
-            ConvertAllToXlsx(targetSubdir, subdir, allowedExtensions, excelApp, overwrite, verbose);
+            ConvertAllToXlsx(targetSubdir, subdir, allowedExtensions, excelApp, overwrite, verbose, logInFile);
         }
     }
 
-    private static void ConvertToXlsx(string inputFilePath, string outputPath, Application excelApp, bool verbose)
+    private static void ConvertToXlsx(string inputFilePath, string outputPath, Application excelApp, bool verbose, bool logInFile)
     {
         Workbook? workbook = null;
         try
@@ -178,10 +204,15 @@ internal class Program
             workbook.SaveAs(outputPath, XlFileFormat.xlOpenXMLWorkbook);
             if (verbose)
                 Console.WriteLine($"Конвертирован: {inputFilePath} -> {outputPath}");
+            if (logInFile)
+                File.AppendAllText(LogFilePath, $"Конвертирован: {inputFilePath} -> {outputPath}\n");
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Ошибка при конвертации {inputFilePath}: {ex.Message}");
+            if (logInFile)
+                File.AppendAllText(LogFilePath, $"Ошибка при конвертации {inputFilePath}: {ex.Message}\n");
+            File.AppendAllText(ErrorLogFilePath, $"[{DateTime.UtcNow}] Ошибка при конвертации:\n{ex}\n");
         }
         finally
         {

@@ -2,7 +2,7 @@
   "profiles": {
     "OfficeConverter.Excel": {
       "commandName": "Project",
-      "commandLineArgs": "-s \"D:\\Data\" -t \"D:\\Output\" --verbose"
+      "commandLineArgs": "-s \"D:\\Convert\\Data\" -t \"D:\\Convert\\Data\" --verbose -l"
     }
   }
 }
