@@ -220,9 +220,10 @@ internal class Program
         }
     }
 
-    private static void ConvertToXlsx(string inputFilePath, string outputPath, Application excelApp, bool verbose, bool logInFile)
+    private static bool ConvertToXlsx(string inputFilePath, string outputPath, Application excelApp, bool verbose, bool logInFile)
     {
         Workbook? workbook = null;
+
         try
         {
             if (!File.Exists(inputFilePath))
@@ -234,17 +235,27 @@ internal class Program
                 throw new PathTooLongException($"Слишком длинный путь к файлу: {outputPath}");
             }
 
-            workbook = excelApp.Workbooks.Open(inputFilePath);
+            workbook = TryOpenWorkbook(inputFilePath, excelApp, 6, verbose, logInFile);
+            if (workbook is not null)
+            {
             workbook.SaveAs(
                 Filename: outputPath,
                 FileFormat: XlFileFormat.xlOpenXMLWorkbook,
                 ConflictResolution: XlSaveConflictResolution.xlLocalSessionChanges,
                 Local: true,
-                AddToMru: false);
+                    AddToMru: false
+                    );
             if (verbose)
                 Console.WriteLine($"Конвертирован: {inputFilePath} -> {outputPath}");
             if (logInFile)
                 File.AppendAllText(LogFilePath, $"Конвертирован: {inputFilePath} -> {outputPath}\n");
+        }
+            else
+            {
+                Console.WriteLine($"Не удалось открыть файл {inputFilePath} после 6 попыток");
+                if (logInFile)
+                    File.AppendAllText(LogFilePath, $"Не удалось открыть файл {inputFilePath} после 6 попыток\n");
+            }
         }
         catch (Exception ex)
         {
@@ -252,15 +263,18 @@ internal class Program
             if (logInFile)
                 File.AppendAllText(LogFilePath, $"Ошибка при конвертации {inputFilePath}: {ex.Message}\n");
             File.AppendAllText(ErrorLogFilePath, $"[{DateTime.UtcNow}] Ошибка при конвертации:\n{ex}\n");
+            return false;
         }
         finally
         {
             if (workbook != null)
             {
                 workbook.Close();
-                Marshal.FinalReleaseComObject(workbook);
+                Marshal.ReleaseComObject(workbook);
                 workbook = null;
             }
+    }
+        return true;
     }
 
     private static Workbook? TryOpenWorkbook(string inputFilePath, Application excelApp, int maxRetries, bool verbose, bool logInFile)
