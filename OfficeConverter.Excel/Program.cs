@@ -193,15 +193,7 @@ internal class Program
                         if (logInFile)
                             File.AppendAllText(LogFilePath, $"Перезапись выключена, будет создан новый файл: {outputFilePath}\n");
                     }
-                    else
-                    {
-                        if (verbose)
-                            Console.WriteLine($"Перезапись включена, будет перезаписан файл: {outputFilePath}");
-                        if (logInFile)
-                            File.AppendAllText(LogFilePath, $"Перезапись включена, будет перезаписан файл: {outputFilePath}\n");
-                        File.Delete(outputFilePath);
                     }
-                }
 
                 if (!hasValidFiles)
                 {
@@ -209,8 +201,16 @@ internal class Program
                     hasValidFiles = true;
                 }
 
-                ConvertToXlsx(filePath, outputFilePath, excelApp, verbose, logInFile);
+                var result = ConvertToXlsx(filePath, outputFilePath, excelApp, verbose, logInFile);
+                if (result && overwrite)
+                {
+                    File.Delete(filePath);
+                    if (verbose)
+                        Console.WriteLine($"Перезапись включена, файл {filePath} удален");
+                    if (logInFile)
+                        File.AppendAllText(LogFilePath, $"Перезапись включена, файл {filePath} удален\n");
             }
+        }
         }
 
         foreach (var subdir in Directory.EnumerateDirectories(sourcePath))
