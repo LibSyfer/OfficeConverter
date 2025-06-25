@@ -193,7 +193,7 @@ internal class Program
                         if (logInFile)
                             File.AppendAllText(LogFilePath, $"Перезапись выключена, будет создан новый файл: {outputFilePath}\n");
                     }
-                    }
+                }
 
                 if (!hasValidFiles)
                 {
@@ -209,8 +209,8 @@ internal class Program
                         Console.WriteLine($"Перезапись включена, файл {filePath} удален");
                     if (logInFile)
                         File.AppendAllText(LogFilePath, $"Перезапись включена, файл {filePath} удален\n");
+                }
             }
-        }
         }
 
         foreach (var subdir in Directory.EnumerateDirectories(sourcePath))
@@ -238,18 +238,18 @@ internal class Program
             workbook = TryOpenWorkbook(inputFilePath, excelApp, 6, verbose, logInFile);
             if (workbook is not null)
             {
-            workbook.SaveAs(
-                Filename: outputPath,
-                FileFormat: XlFileFormat.xlOpenXMLWorkbook,
-                ConflictResolution: XlSaveConflictResolution.xlLocalSessionChanges,
-                Local: true,
+                workbook.SaveAs(
+                    Filename: outputPath,
+                    FileFormat: XlFileFormat.xlOpenXMLWorkbook,
+                    ConflictResolution: XlSaveConflictResolution.xlLocalSessionChanges,
+                    Local: true,
                     AddToMru: false
                     );
-            if (verbose)
-                Console.WriteLine($"Конвертирован: {inputFilePath} -> {outputPath}");
-            if (logInFile)
-                File.AppendAllText(LogFilePath, $"Конвертирован: {inputFilePath} -> {outputPath}\n");
-        }
+                if (verbose)
+                    Console.WriteLine($"Конвертирован: {inputFilePath} -> {outputPath}");
+                if (logInFile)
+                    File.AppendAllText(LogFilePath, $"Конвертирован: {inputFilePath} -> {outputPath}\n");
+            }
             else
             {
                 Console.WriteLine($"Не удалось открыть файл {inputFilePath} после 6 попыток");
@@ -273,7 +273,7 @@ internal class Program
                 Marshal.ReleaseComObject(workbook);
                 workbook = null;
             }
-    }
+        }
         return true;
     }
 
@@ -295,7 +295,7 @@ internal class Program
                 if (logInFile)
                     File.AppendAllText(LogFilePath, $"Ошибка при открытии файла {inputFilePath}: {ex.Message}\nПовторная попытка\n");
                 File.AppendAllText(ErrorLogFilePath, $"[{DateTime.UtcNow}] Ошибка при открытии файла:\n{ex}\nПовторная попытка\n");
-        }
+            }
 
             attempt++;
             Thread.Sleep(1000 *  attempt);
