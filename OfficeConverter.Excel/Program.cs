@@ -261,6 +261,32 @@ internal class Program
                 Marshal.FinalReleaseComObject(workbook);
                 workbook = null;
             }
+    }
+
+    private static Workbook? TryOpenWorkbook(string inputFilePath, Application excelApp, int maxRetries, bool verbose, bool logInFile)
+    {
+        int attempt = 0;
+        Workbook? workbook = null;
+
+        while (attempt < maxRetries)
+        {
+            try
+            {
+                workbook = excelApp.Workbooks.Open(inputFilePath);
+                return workbook;
+            }
+            catch (COMException ex) when (ex.HResult == unchecked((int)0x800AC472))
+            {
+                Console.WriteLine($"Ошибка при открытии файла {inputFilePath}: {ex.Message}\nПовторная попытка");
+                if (logInFile)
+                    File.AppendAllText(LogFilePath, $"Ошибка при открытии файла {inputFilePath}: {ex.Message}\nПовторная попытка\n");
+                File.AppendAllText(ErrorLogFilePath, $"[{DateTime.UtcNow}] Ошибка при открытии файла:\n{ex}\nПовторная попытка\n");
         }
+
+            attempt++;
+            Thread.Sleep(1000 *  attempt);
+        }
+
+        return workbook;
     }
 }
