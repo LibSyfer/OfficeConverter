@@ -291,10 +291,13 @@ internal class Program
             }
             catch (COMException ex) when (ex.HResult == unchecked((int)0x800AC472))
             {
-                Console.WriteLine($"Ошибка при открытии файла {inputFilePath}: {ex.Message}\nПовторная попытка");
+                Console.WriteLine($"Ошибка при открытии файла {inputFilePath}: {ex.Message}\nПовторная попытка: {attempt}");
+                Console.ForegroundColor = ConsoleColor.Magenta;
+                Console.WriteLine("Закройте все всплывающие окна excel, блокирующие работу");
+                Console.ResetColor();
                 if (logInFile)
-                    File.AppendAllText(LogFilePath, $"Ошибка при открытии файла {inputFilePath}: {ex.Message}\nПовторная попытка\n");
-                File.AppendAllText(ErrorLogFilePath, $"[{DateTime.UtcNow}] Ошибка при открытии файла:\n{ex}\nПовторная попытка\n");
+                    File.AppendAllText(LogFilePath, $"Ошибка при открытии файла {inputFilePath}: {ex.Message}\nПовторная попытка: {attempt}\n");
+                File.AppendAllText(ErrorLogFilePath, $"[{DateTime.UtcNow}] Ошибка при открытии файла:\n{ex}\nПовторная попытка: {attempt}\n");
             }
 
             attempt++;
