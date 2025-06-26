@@ -54,6 +54,8 @@ internal class Program
 
     private static void RunWithOptions(Options options)
     {
+        Application? excelApp = null;
+
         LicenceRetryPolicy = Policy.Handle<COMException>()
         .WaitAndRetry(
             retryCount: RetryCount,
@@ -105,7 +107,7 @@ internal class Program
                 return;
             }
 
-            Application excelApp = new Application();
+            excelApp = new Application();
             excelApp.DisplayAlerts = false;
             excelApp.AskToUpdateLinks = false;
             excelApp.AlertBeforeOverwriting = false;
@@ -120,8 +122,6 @@ internal class Program
                 ".xlsm", ".xlsb", ".xltx", ".xltm", ".xlt", ".xls", ".ods"
             };
 
-            try
-            {
                 if (!CanWriteToFolder(options.TargetDirectory))
                 {
                     Console.WriteLine($"Недостаточно прав для создания файлов в директории {options.TargetDirectory}");
@@ -140,15 +140,6 @@ internal class Program
                     verbose: options.Verbose,
                     logInFile: options.LogInFile);
             }
-            finally
-            {
-                excelApp.Quit();
-                Marshal.FinalReleaseComObject(excelApp);
-                excelApp = null;
-                if (options.LogInFile)
-                    File.AppendAllText(LogFilePath, $"Очистка COM объекта фонового приложения excel\n");
-            }
-        }
         catch (Exception ex)
         {
             Console.WriteLine($"Глобальная ошибка: {ex.Message}");
@@ -159,6 +150,15 @@ internal class Program
         }
         finally
         {
+            if (options.Verbose)
+                Console.WriteLine("Очистка COM объекта фонового приложения excel");
+            if (options.LogInFile)
+                File.AppendAllText(LogFilePath, "Очистка COM объекта фонового приложения excel\n");
+            excelApp.Quit();
+            Marshal.FinalReleaseComObject(excelApp);
+            excelApp = null;
+
+            if (options.Verbose)
             Console.WriteLine("Очистка процессов excel");
             if (options.LogInFile)
                 File.AppendAllText(LogFilePath, "Очистка процессов excel\n");
