@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using Microsoft.Office.Interop.Excel;
 using Microsoft.Win32;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 class Options
@@ -129,11 +130,18 @@ internal class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Ошибка: {ex.Message}");
+            Console.WriteLine($"Глобальная ошибка: {ex.Message}");
             if (options.LogInFile)
-                File.AppendAllText(LogFilePath, $"Ошибка: {ex.Message}\n");
+                File.AppendAllText(LogFilePath, $"Глобальная ошибка: {ex.Message}\n");
             File.AppendAllText(ErrorLogFilePath, $"[{DateTime.UtcNow}] Глобальная ошибка:\n{ex}\n");
             Environment.Exit(1);
+        }
+        finally
+        {
+            Console.WriteLine("Очистка процессов excel");
+            if (options.LogInFile)
+                File.AppendAllText(LogFilePath, "Очистка процессов excel\n");
+            KillExcelProcesses();
         }
     }
 
@@ -309,6 +317,22 @@ internal class Program
             Thread.Sleep(1000 *  attempt);
         }
 
-        return workbook;
+        return null;
+    }
+
+    private static void KillExcelProcesses()
+    {
+        foreach (var process in Process.GetProcessesByName("EXCEL"))
+        {
+            try
+            {
+                // Убиваем только процессы, запущенные после нашего
+                if (process.StartTime > Process.GetCurrentProcess().StartTime)
+                {
+                    process.Kill();
+                }
+            }
+            catch { /* Игнорируем ошибки */ }
+        }
     }
 }
