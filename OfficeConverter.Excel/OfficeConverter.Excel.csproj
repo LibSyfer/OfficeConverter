@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
+    <PackageReference Include="Polly" Version="8.6.1" />
 	  <COMReference Include="Microsoft.Office.Interop.Excel" Version="15.0.4795.1001">
 		  <Guid>{00020813-0000-0000-C000-000000000046}</Guid>
 		  <VersionMajor>1</VersionMajor>
