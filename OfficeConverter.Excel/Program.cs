@@ -162,7 +162,7 @@ internal class Program
             Console.WriteLine("Очистка процессов excel");
             if (options.LogInFile)
                 File.AppendAllText(LogFilePath, "Очистка процессов excel\n");
-            KillExcelProcesses();
+            KillExcelProcesses(options.Verbose, options.LogInFile);
         }
     }
 
@@ -312,49 +312,33 @@ internal class Program
         return true;
     }
 
-    private static Workbook? TryOpenWorkbook(string inputFilePath, Application excelApp, int maxRetries, bool verbose, bool logInFile)
+    private static void KillExcelProcesses(bool verbose, bool logInFile)
     {
-        int attempt = 0;
-        Workbook? workbook = null;
-
-        while (attempt < maxRetries)
-        {
-            try
-            {
-                workbook = excelApp.Workbooks.Open(inputFilePath);
-                return workbook;
-            }
-            catch (COMException ex) when (ex.HResult == unchecked((int)0x800AC472))
-            {
-                Console.WriteLine($"Ошибка при открытии файла {inputFilePath}: {ex.Message}\nПовторная попытка: {attempt}");
-                Console.ForegroundColor = ConsoleColor.Magenta;
-                Console.WriteLine("Закройте все всплывающие окна excel, блокирующие работу");
-                Console.ResetColor();
-                if (logInFile)
-                    File.AppendAllText(LogFilePath, $"Ошибка при открытии файла {inputFilePath}: {ex.Message}\nПовторная попытка: {attempt}\n");
-                File.AppendAllText(ErrorLogFilePath, $"[{DateTime.UtcNow}] Ошибка при открытии файла:\n{ex}\nПовторная попытка: {attempt}\n");
-            }
-
-            attempt++;
-            Thread.Sleep(1000 *  attempt);
-        }
-
-        return null;
-    }
-
-    private static void KillExcelProcesses()
-    {
+        int processCount = 0;
         foreach (var process in Process.GetProcessesByName("EXCEL"))
         {
             try
             {
-                // Убиваем только процессы, запущенные после нашего
                 if (process.StartTime > Process.GetCurrentProcess().StartTime)
-                {
+            {
                     process.Kill();
+        }
+                processCount++;
+    }
+            catch (Exception ex)
+            {
+                if (logInFile && verbose)
+                {
+                    File.AppendAllText(LogFilePath, $"Не удалось остановить процесс:\n{ex}\n");
+                    File.AppendAllText(ErrorLogFilePath, $"Не удалось остановить процесс:\n{ex}\n");
                 }
             }
             catch { /* Игнорируем ошибки */ }
         }
+
+        if (verbose)
+            Console.WriteLine($"{processCount} процессов остановлено");
+        if (logInFile)
+            File.AppendAllText(LogFilePath, $"{processCount} процессов остановлено\n");
     }
 }
