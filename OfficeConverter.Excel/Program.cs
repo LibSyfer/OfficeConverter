@@ -270,7 +270,6 @@ internal class Program
             LicenceRetryPolicy.Execute((context) => workbook = excelApp.Workbooks.Open(inputFilePath), new Context("excel.workbooks.Open"));
             LicenceRetryPolicy.Execute((context) =>
                     workbook!.SaveAs(
-                workbook.SaveAs(
                     Filename: outputPath,
                     FileFormat: XlFileFormat.xlOpenXMLWorkbook,
                     ConflictResolution: XlSaveConflictResolution.xlLocalSessionChanges,
@@ -338,7 +337,6 @@ internal class Program
                     File.AppendAllText(ErrorLogFilePath, $"Не удалось остановить процесс:\n{ex}\n");
                 }
             }
-            catch { /* Игнорируем ошибки */ }
         }
 
         if (verbose)
