@@ -1,6 +1,8 @@
 ﻿using CommandLine;
 using Microsoft.Office.Interop.Excel;
 using Microsoft.Win32;
+using Polly;
+using Polly.Retry;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -30,6 +32,10 @@ internal class Program
     private static string LogFilePath = Path.Combine(Directory.GetCurrentDirectory(), "log.txt");
     private static string ErrorLogFilePath = Path.Combine(Directory.GetCurrentDirectory(), "errorLog.txt");
 
+    private static int RetryCount = 10;
+
+    private static RetryPolicy LicenceRetryPolicy = Policy.Handle<COMException>().Retry();
+
     private static void Main(string[] args)
     {
         Parser.Default.ParseArguments<Options>(args)
@@ -48,6 +54,21 @@ internal class Program
 
     private static void RunWithOptions(Options options)
     {
+        LicenceRetryPolicy = Policy.Handle<COMException>()
+        .WaitAndRetry(
+            retryCount: RetryCount,
+            sleepDurationProvider: attempt => TimeSpan.FromSeconds(2 * attempt),
+            onRetry: (exception, delay, retryCount, context) =>
+            {
+                Console.ForegroundColor = ConsoleColor.Magenta;
+                Console.WriteLine($"Работа excel блокируется ({context.OperationKey}). Попытка восстановить: {retryCount}");
+                Console.WriteLine("Закройте все всплывающие окна excel, блокирующие работу");
+                Console.ResetColor();
+                if (options.LogInFile)
+                    File.AppendAllText(LogFilePath, $"Работа excel блокируется ({context.OperationKey}). Попытка восстановить: {retryCount}\n");
+                File.AppendAllText(ErrorLogFilePath, $"Работа excel блокируется ({context.OperationKey}): {exception}\nПопытка восстановить: {retryCount}\n");
+            });
+
         try
         {
             options.SourceDirectory = Path.GetFullPath(options.SourceDirectory);
@@ -246,17 +267,18 @@ internal class Program
                 throw new PathTooLongException($"Слишком длинный путь к файлу: {outputPath}");
             }
 
-            workbook = TryOpenWorkbook(inputFilePath, excelApp, 6, verbose, logInFile);
-            if (workbook is not null)
-            {
+            LicenceRetryPolicy.Execute((context) => workbook = excelApp.Workbooks.Open(inputFilePath), new Context("excel.workbooks.Open"));
+            LicenceRetryPolicy.Execute((context) =>
+                    workbook!.SaveAs(
                 workbook.SaveAs(
                     Filename: outputPath,
                     FileFormat: XlFileFormat.xlOpenXMLWorkbook,
                     ConflictResolution: XlSaveConflictResolution.xlLocalSessionChanges,
                     Local: true,
-                    AddToMru: false
+                        AddToMru: false),
+                    new Context("workbook.SaveAs")
                     );
-                if (verbose)
+
                     Console.WriteLine($"Конвертирован: {inputFilePath} -> {outputPath}");
                 if (logInFile)
                     File.AppendAllText(LogFilePath, $"Конвертирован: {inputFilePath} -> {outputPath}\n");
@@ -282,7 +304,7 @@ internal class Program
             {
                 if (logInFile)
                     File.AppendAllText(LogFilePath, $"Очистка COM объектов файла {inputFilePath}\n");
-                workbook.Close();
+                LicenceRetryPolicy.Execute((context) => workbook.Close(), new Context("workbook.Close"));
                 Marshal.FinalReleaseComObject(workbook);
                 workbook = null;
             }
