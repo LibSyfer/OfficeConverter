@@ -283,12 +283,17 @@ internal class Program
                 if (logInFile)
                     File.AppendAllText(LogFilePath, $"Конвертирован: {inputFilePath} -> {outputPath}\n");
             }
-            else
+        catch (COMException ex) when (ex.HResult == unchecked((int)0x800AC472))
             {
-                Console.WriteLine($"Не удалось открыть файл {inputFilePath} после 6 попыток");
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine($"Критическая ошибка: не удалось снять блокировку excel спустя {RetryCount} попыток");
+            Console.ResetColor();
                 if (logInFile)
-                    File.AppendAllText(LogFilePath, $"Не удалось открыть файл {inputFilePath} после 6 попыток\n");
+            {
+                File.AppendAllText(LogFilePath, $"Критическая ошибка: не удалось снять блокировку excel спустя {RetryCount} попыток: {ex.Message}\n");
+                File.AppendAllText(ErrorLogFilePath, $"Критическая ошибка: не удалось снять блокировку excel спустя {RetryCount} попыток:\n{ex}\n");
             }
+            throw;
         }
         catch (Exception ex)
         {
