@@ -160,7 +160,7 @@ internal class Program
                 Console.WriteLine("Очистка COM объекта фонового приложения excel");
             if (options.LogInFile)
                 File.AppendAllText(LogFilePath, "Очистка COM объекта фонового приложения excel\n");
-            excelApp?.Quit();
+            try { excelApp?.Quit(); } catch { }
             Marshal.FinalReleaseComObject(excelApp);
             excelApp = null;
 
