@@ -55,6 +55,7 @@ internal class Program
     private static void RunWithOptions(Options options)
     {
         Application? excelApp = null;
+        int exitCode = 0;
 
         LicenceRetryPolicy = Policy.Handle<COMException>()
         .WaitAndRetry(
@@ -151,7 +152,7 @@ internal class Program
                 File.AppendAllText(LogFilePath, $"Глобальная ошибка: {ex.Message}\n");
                 File.AppendAllText(ErrorLogFilePath, $"Глобальная ошибка:\n{ex}\n");
             }
-            Environment.Exit(1);
+            exitCode = 1;
         }
         finally
         {
@@ -159,7 +160,7 @@ internal class Program
                 Console.WriteLine("Очистка COM объекта фонового приложения excel");
             if (options.LogInFile)
                 File.AppendAllText(LogFilePath, "Очистка COM объекта фонового приложения excel\n");
-            excelApp.Quit();
+            excelApp?.Quit();
             Marshal.FinalReleaseComObject(excelApp);
             excelApp = null;
 
@@ -169,6 +170,7 @@ internal class Program
                 File.AppendAllText(LogFilePath, "Очистка процессов excel\n");
             KillExcelProcesses(options.Verbose, options.LogInFile);
         }
+        Environment.Exit(exitCode);
     }
 
     private static bool IsExcelInstalled()
