@@ -1,6 +1,8 @@
 ﻿using CommandLine;
 using Microsoft.Office.Interop.Excel;
 using Microsoft.Win32;
+using Polly;
+using Polly.Retry;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -30,6 +32,10 @@ internal class Program
     private static string LogFilePath = Path.Combine(Directory.GetCurrentDirectory(), "log.txt");
     private static string ErrorLogFilePath = Path.Combine(Directory.GetCurrentDirectory(), "errorLog.txt");
 
+    private static int RetryCount = 10;
+
+    private static RetryPolicy LicenceRetryPolicy = Policy.Handle<COMException>().Retry();
+
     private static void Main(string[] args)
     {
         Parser.Default.ParseArguments<Options>(args)
@@ -48,6 +54,23 @@ internal class Program
 
     private static void RunWithOptions(Options options)
     {
+        Application? excelApp = null;
+
+        LicenceRetryPolicy = Policy.Handle<COMException>()
+        .WaitAndRetry(
+            retryCount: RetryCount,
+            sleepDurationProvider: attempt => TimeSpan.FromSeconds(2 * attempt),
+            onRetry: (exception, delay, retryCount, context) =>
+            {
+                Console.ForegroundColor = ConsoleColor.Magenta;
+                Console.WriteLine($"Работа excel блокируется ({context.OperationKey}). Попытка восстановить: {retryCount}");
+                Console.WriteLine("Закройте все всплывающие окна excel, блокирующие работу");
+                Console.ResetColor();
+                if (options.LogInFile)
+                    File.AppendAllText(LogFilePath, $"Работа excel блокируется ({context.OperationKey}). Попытка восстановить: {retryCount}\n");
+                File.AppendAllText(ErrorLogFilePath, $"Работа excel блокируется ({context.OperationKey}): {exception}\nПопытка восстановить: {retryCount}\n");
+            });
+
         try
         {
             options.SourceDirectory = Path.GetFullPath(options.SourceDirectory);
@@ -70,6 +93,9 @@ internal class Program
             }
             if (options.LogInFile)
             {
+                File.AppendAllText(LogFilePath, $"Начало конвертации {DateTime.UtcNow}\n");
+                File.AppendAllText(ErrorLogFilePath, $"Начало конвертации {DateTime.UtcNow}\n");
+
                 File.AppendAllText(LogFilePath, $"Конвертация файлов из: {options.SourceDirectory}\n");
                 File.AppendAllText(LogFilePath, $"Сохранение результатов в: {options.TargetDirectory}\n");
                 File.AppendAllText(LogFilePath, $"Поддерживаемые форматы: {options.SupportedFormats}\n");
@@ -84,7 +110,7 @@ internal class Program
                 return;
             }
 
-            Application excelApp = new Application();
+            excelApp = new Application();
             excelApp.DisplayAlerts = false;
             excelApp.AskToUpdateLinks = false;
             excelApp.AlertBeforeOverwriting = false;
@@ -99,49 +125,49 @@ internal class Program
                 ".xlsm", ".xlsb", ".xltx", ".xltm", ".xlt", ".xls", ".ods"
             };
 
-            try
+            if (!CanWriteToFolder(options.TargetDirectory))
             {
-                if (!CanWriteToFolder(options.TargetDirectory))
-                {
-                    Console.WriteLine($"Недостаточно прав для создания файлов в директории {options.TargetDirectory}");
-                    if (options.LogInFile)
-                        File.AppendAllText(LogFilePath, $"Недостаточно прав для создания файлов в директории {options.TargetDirectory}\n");
-                    Environment.Exit(1);
-                    return;
-                }
-
-                ConvertAllToXlsx(
-                    targetPath: options.TargetDirectory,
-                    sourcePath: options.SourceDirectory,
-                    allowedExtensions: allowedExtensions,
-                    excelApp: excelApp,
-                    overwrite: options.Overwrite,
-                    verbose: options.Verbose,
-                    logInFile: options.LogInFile);
-            }
-            finally
-            {
-                excelApp.Quit();
-                Marshal.FinalReleaseComObject(excelApp);
-                excelApp = null;
+                Console.WriteLine($"Недостаточно прав для создания файлов в директории {options.TargetDirectory}");
                 if (options.LogInFile)
-                    File.AppendAllText(LogFilePath, $"Очистка COM объекта фонового приложения excel\n");
+                    File.AppendAllText(LogFilePath, $"Недостаточно прав для создания файлов в директории {options.TargetDirectory}\n");
+                Environment.Exit(1);
+                return;
             }
+
+            ConvertAllToXlsx(
+                targetPath: options.TargetDirectory,
+                sourcePath: options.SourceDirectory,
+                allowedExtensions: allowedExtensions,
+                excelApp: excelApp,
+                overwrite: options.Overwrite,
+                verbose: options.Verbose,
+                logInFile: options.LogInFile);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Глобальная ошибка: {ex.Message}");
             if (options.LogInFile)
+            {
                 File.AppendAllText(LogFilePath, $"Глобальная ошибка: {ex.Message}\n");
-            File.AppendAllText(ErrorLogFilePath, $"[{DateTime.UtcNow}] Глобальная ошибка:\n{ex}\n");
+                File.AppendAllText(ErrorLogFilePath, $"Глобальная ошибка:\n{ex}\n");
+            }
             Environment.Exit(1);
         }
         finally
         {
-            Console.WriteLine("Очистка процессов excel");
+            if (options.Verbose)
+                Console.WriteLine("Очистка COM объекта фонового приложения excel");
+            if (options.LogInFile)
+                File.AppendAllText(LogFilePath, "Очистка COM объекта фонового приложения excel\n");
+            excelApp.Quit();
+            Marshal.FinalReleaseComObject(excelApp);
+            excelApp = null;
+
+            if (options.Verbose)
+                Console.WriteLine("Очистка процессов excel");
             if (options.LogInFile)
                 File.AppendAllText(LogFilePath, "Очистка процессов excel\n");
-            KillExcelProcesses();
+            KillExcelProcesses(options.Verbose, options.LogInFile);
         }
     }
 
@@ -246,34 +272,41 @@ internal class Program
                 throw new PathTooLongException($"Слишком длинный путь к файлу: {outputPath}");
             }
 
-            workbook = TryOpenWorkbook(inputFilePath, excelApp, 6, verbose, logInFile);
-            if (workbook is not null)
-            {
-                workbook.SaveAs(
-                    Filename: outputPath,
-                    FileFormat: XlFileFormat.xlOpenXMLWorkbook,
-                    ConflictResolution: XlSaveConflictResolution.xlLocalSessionChanges,
-                    Local: true,
-                    AddToMru: false
+            LicenceRetryPolicy.Execute((context) => workbook = excelApp.Workbooks.Open(inputFilePath), new Context("excel.workbooks.Open"));
+            LicenceRetryPolicy.Execute((context) =>
+                    workbook!.SaveAs(
+                        Filename: outputPath,
+                        FileFormat: XlFileFormat.xlOpenXMLWorkbook,
+                        ConflictResolution: XlSaveConflictResolution.xlLocalSessionChanges,
+                        Local: true,
+                        AddToMru: false),
+                    new Context("workbook.SaveAs")
                     );
-                if (verbose)
-                    Console.WriteLine($"Конвертирован: {inputFilePath} -> {outputPath}");
-                if (logInFile)
-                    File.AppendAllText(LogFilePath, $"Конвертирован: {inputFilePath} -> {outputPath}\n");
-            }
-            else
+
+            Console.WriteLine($"Конвертирован: {inputFilePath} -> {outputPath}");
+            if (logInFile)
+                File.AppendAllText(LogFilePath, $"Конвертирован: {inputFilePath} -> {outputPath}\n");
+        }
+        catch (COMException ex) when (ex.HResult == unchecked((int)0x800AC472))
+        {
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine($"Критическая ошибка: не удалось снять блокировку excel спустя {RetryCount} попыток");
+            Console.ResetColor();
+            if (logInFile)
             {
-                Console.WriteLine($"Не удалось открыть файл {inputFilePath} после 6 попыток");
-                if (logInFile)
-                    File.AppendAllText(LogFilePath, $"Не удалось открыть файл {inputFilePath} после 6 попыток\n");
+                File.AppendAllText(LogFilePath, $"Критическая ошибка: не удалось снять блокировку excel спустя {RetryCount} попыток: {ex.Message}\n");
+                File.AppendAllText(ErrorLogFilePath, $"Критическая ошибка: не удалось снять блокировку excel спустя {RetryCount} попыток:\n{ex}\n");
             }
+            throw;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Ошибка при конвертации {inputFilePath}: {ex.Message}");
             if (logInFile)
+            {
                 File.AppendAllText(LogFilePath, $"Ошибка при конвертации {inputFilePath}: {ex.Message}\n");
-            File.AppendAllText(ErrorLogFilePath, $"[{DateTime.UtcNow}] Ошибка при конвертации:\n{ex}\n");
+                File.AppendAllText(ErrorLogFilePath, $"Ошибка при конвертации {inputFilePath}:\n{ex}\n");
+            }
             return false;
         }
         finally
@@ -282,7 +315,7 @@ internal class Program
             {
                 if (logInFile)
                     File.AppendAllText(LogFilePath, $"Очистка COM объектов файла {inputFilePath}\n");
-                workbook.Close();
+                LicenceRetryPolicy.Execute((context) => workbook.Close(), new Context("workbook.Close"));
                 Marshal.FinalReleaseComObject(workbook);
                 workbook = null;
             }
@@ -290,49 +323,32 @@ internal class Program
         return true;
     }
 
-    private static Workbook? TryOpenWorkbook(string inputFilePath, Application excelApp, int maxRetries, bool verbose, bool logInFile)
+    private static void KillExcelProcesses(bool verbose, bool logInFile)
     {
-        int attempt = 0;
-        Workbook? workbook = null;
-
-        while (attempt < maxRetries)
-        {
-            try
-            {
-                workbook = excelApp.Workbooks.Open(inputFilePath);
-                return workbook;
-            }
-            catch (COMException ex) when (ex.HResult == unchecked((int)0x800AC472))
-            {
-                Console.WriteLine($"Ошибка при открытии файла {inputFilePath}: {ex.Message}\nПовторная попытка: {attempt}");
-                Console.ForegroundColor = ConsoleColor.Magenta;
-                Console.WriteLine("Закройте все всплывающие окна excel, блокирующие работу");
-                Console.ResetColor();
-                if (logInFile)
-                    File.AppendAllText(LogFilePath, $"Ошибка при открытии файла {inputFilePath}: {ex.Message}\nПовторная попытка: {attempt}\n");
-                File.AppendAllText(ErrorLogFilePath, $"[{DateTime.UtcNow}] Ошибка при открытии файла:\n{ex}\nПовторная попытка: {attempt}\n");
-            }
-
-            attempt++;
-            Thread.Sleep(1000 *  attempt);
-        }
-
-        return null;
-    }
-
-    private static void KillExcelProcesses()
-    {
+        int processCount = 0;
         foreach (var process in Process.GetProcessesByName("EXCEL"))
         {
             try
             {
-                // Убиваем только процессы, запущенные после нашего
                 if (process.StartTime > Process.GetCurrentProcess().StartTime)
                 {
                     process.Kill();
                 }
+                processCount++;
             }
-            catch { /* Игнорируем ошибки */ }
+            catch (Exception ex)
+            {
+                if (logInFile && verbose)
+                {
+                    File.AppendAllText(LogFilePath, $"Не удалось остановить процесс:\n{ex}\n");
+                    File.AppendAllText(ErrorLogFilePath, $"Не удалось остановить процесс:\n{ex}\n");
+                }
+            }
         }
+
+        if (verbose)
+            Console.WriteLine($"{processCount} процессов остановлено");
+        if (logInFile)
+            File.AppendAllText(LogFilePath, $"{processCount} процессов остановлено\n");
     }
 }
