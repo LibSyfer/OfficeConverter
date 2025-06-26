@@ -122,6 +122,8 @@ internal class Program
             {
                 excelApp.Quit();
                 Marshal.ReleaseComObject(excelApp);
+                if (options.LogInFile)
+                    File.AppendAllText(LogFilePath, $"Очистка COM объекта фонового приложения excel\n");
             }
         }
         catch (Exception ex)
@@ -269,6 +271,8 @@ internal class Program
         {
             if (workbook != null)
             {
+                if (logInFile)
+                    File.AppendAllText(LogFilePath, $"Очистка COM объектов файла {inputFilePath}\n");
                 workbook.Close();
                 Marshal.ReleaseComObject(workbook);
                 workbook = null;
