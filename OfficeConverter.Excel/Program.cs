@@ -57,7 +57,9 @@ internal class Program
         Application? excelApp = null;
         int exitCode = 0;
 
-        LicenceRetryPolicy = Policy.Handle<COMException>()
+        try
+        {
+            LicenceRetryPolicy = Policy.Handle<COMException>(ex => ex.HResult == unchecked((int)0x800AC472))
         .WaitAndRetry(
             retryCount: RetryCount,
             sleepDurationProvider: attempt => TimeSpan.FromSeconds(2 * attempt),
@@ -171,6 +173,17 @@ internal class Program
             KillExcelProcesses(options.Verbose, options.LogInFile);
         }
         Environment.Exit(exitCode);
+    }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Критическая ошибка: {ex.Message}");
+            if (options.LogInFile)
+            {
+                File.AppendAllText(LogFilePath, $"Критическая ошибка: {ex.Message}\n");
+                File.AppendAllText(ErrorLogFilePath, $"Критическая ошибка:\n{ex}\n");
+            }
+            Environment.Exit(1);
+        }        
     }
 
     private static bool IsExcelInstalled()
