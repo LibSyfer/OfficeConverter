@@ -57,120 +57,133 @@ internal class Program
         Application? excelApp = null;
         int exitCode = 0;
 
-        LicenceRetryPolicy = Policy.Handle<COMException>()
-        .WaitAndRetry(
-            retryCount: RetryCount,
-            sleepDurationProvider: attempt => TimeSpan.FromSeconds(2 * attempt),
-            onRetry: (exception, delay, retryCount, context) =>
-            {
-                Console.ForegroundColor = ConsoleColor.Magenta;
-                Console.WriteLine($"Работа excel блокируется ({context.OperationKey}). Попытка восстановить: {retryCount}");
-                Console.WriteLine("Закройте все всплывающие окна excel, блокирующие работу");
-                Console.ResetColor();
-                if (options.LogInFile)
-                    File.AppendAllText(LogFilePath, $"Работа excel блокируется ({context.OperationKey}). Попытка восстановить: {retryCount}\n");
-                File.AppendAllText(ErrorLogFilePath, $"Работа excel блокируется ({context.OperationKey}): {exception}\nПопытка восстановить: {retryCount}\n");
-            });
-
         try
         {
-            options.SourceDirectory = Path.GetFullPath(options.SourceDirectory);
-            options.TargetDirectory = Path.GetFullPath(options.TargetDirectory);
+            LicenceRetryPolicy = Policy.Handle<COMException>(ex => ex.HResult == unchecked((int)0x800AC472))
+            .WaitAndRetry(
+                retryCount: RetryCount,
+                sleepDurationProvider: attempt => TimeSpan.FromSeconds(2 * attempt),
+                onRetry: (exception, delay, retryCount, context) =>
+                {
+                    Console.ForegroundColor = ConsoleColor.Magenta;
+                    Console.WriteLine($"Работа excel блокируется ({context.OperationKey}). Попытка восстановить: {retryCount}");
+                    Console.WriteLine("Закройте все всплывающие окна excel, блокирующие работу");
+                    Console.ResetColor();
+                    if (options.LogInFile)
+                        File.AppendAllText(LogFilePath, $"Работа excel блокируется ({context.OperationKey}). Попытка восстановить: {retryCount}\n");
+                    File.AppendAllText(ErrorLogFilePath, $"Работа excel блокируется ({context.OperationKey}): {exception}\nПопытка восстановить: {retryCount}\n");
+                });
 
-            if (!Directory.Exists(options.SourceDirectory))
+            try
             {
-                Console.WriteLine($"Исходная директория {options.SourceDirectory} не существует");
+                options.SourceDirectory = Path.GetFullPath(options.SourceDirectory);
+                options.TargetDirectory = Path.GetFullPath(options.TargetDirectory);
+
+                if (!Directory.Exists(options.SourceDirectory))
+                {
+                    Console.WriteLine($"Исходная директория {options.SourceDirectory} не существует");
+                    if (options.LogInFile)
+                        File.AppendAllText(LogFilePath, $"Исходная директория {options.SourceDirectory} не существует");
+                    Environment.Exit(1);
+                    return;
+                }
+
+                if (options.Verbose)
+                {
+                    Console.WriteLine($"Конвертация файлов из: {options.SourceDirectory}");
+                    Console.WriteLine($"Сохранение результатов в: {options.TargetDirectory}");
+                    Console.WriteLine($"Поддерживаемые форматы: {options.SupportedFormats}");
+                }
                 if (options.LogInFile)
-                    File.AppendAllText(LogFilePath, $"Исходная директория {options.SourceDirectory} не существует");
-                Environment.Exit(1);
-                return;
-            }
+                {
+                    File.AppendAllText(LogFilePath, $"Начало конвертации {DateTime.UtcNow}\n");
+                    File.AppendAllText(ErrorLogFilePath, $"Начало конвертации {DateTime.UtcNow}\n");
 
-            if (options.Verbose)
-            {
-                Console.WriteLine($"Конвертация файлов из: {options.SourceDirectory}");
-                Console.WriteLine($"Сохранение результатов в: {options.TargetDirectory}");
-                Console.WriteLine($"Поддерживаемые форматы: {options.SupportedFormats}");
-            }
-            if (options.LogInFile)
-            {
-                File.AppendAllText(LogFilePath, $"Начало конвертации {DateTime.UtcNow}\n");
-                File.AppendAllText(ErrorLogFilePath, $"Начало конвертации {DateTime.UtcNow}\n");
+                    File.AppendAllText(LogFilePath, $"Конвертация файлов из: {options.SourceDirectory}\n");
+                    File.AppendAllText(LogFilePath, $"Сохранение результатов в: {options.TargetDirectory}\n");
+                    File.AppendAllText(LogFilePath, $"Поддерживаемые форматы: {options.SupportedFormats}\n");
+                }
 
-                File.AppendAllText(LogFilePath, $"Конвертация файлов из: {options.SourceDirectory}\n");
-                File.AppendAllText(LogFilePath, $"Сохранение результатов в: {options.TargetDirectory}\n");
-                File.AppendAllText(LogFilePath, $"Поддерживаемые форматы: {options.SupportedFormats}\n");
-            }
+                if (!IsExcelInstalled())
+                {
+                    Console.WriteLine("Для работы программы требуется Excel. Microsoft Excel не установлен на этом компьютере");
+                    if (options.LogInFile)
+                        File.AppendAllText(LogFilePath, "Для работы программы требуется Excel. Microsoft Excel не установлен на этом компьютере\n");
+                    Environment.Exit(1);
+                    return;
+                }
 
-            if (!IsExcelInstalled())
+                excelApp = new Application();
+                excelApp.DisplayAlerts = false;
+                excelApp.AskToUpdateLinks = false;
+                excelApp.AlertBeforeOverwriting = false;
+                #if DEBUG
+                excelApp.Visible = true;
+                #else
+                excelApp.Visible = false;
+                #endif
+
+                var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ".xlsm", ".xlsb", ".xltx", ".xltm", ".xlt", ".xls", ".ods"
+                };
+
+                if (!CanWriteToFolder(options.TargetDirectory))
+                {
+                    Console.WriteLine($"Недостаточно прав для создания файлов в директории {options.TargetDirectory}");
+                    if (options.LogInFile)
+                        File.AppendAllText(LogFilePath, $"Недостаточно прав для создания файлов в директории {options.TargetDirectory}\n");
+                    Environment.Exit(1);
+                    return;
+                }
+
+                ConvertAllToXlsx(
+                    targetPath: options.TargetDirectory,
+                    sourcePath: options.SourceDirectory,
+                    allowedExtensions: allowedExtensions,
+                    excelApp: excelApp,
+                    overwrite: options.Overwrite,
+                    verbose: options.Verbose,
+                    logInFile: options.LogInFile);
+            }
+            catch (Exception ex)
             {
-                Console.WriteLine("Для работы программы требуется Excel. Microsoft Excel не установлен на этом компьютере");
+                Console.WriteLine($"Глобальная ошибка: {ex.Message}");
                 if (options.LogInFile)
-                    File.AppendAllText(LogFilePath, "Для работы программы требуется Excel. Microsoft Excel не установлен на этом компьютере\n");
-                Environment.Exit(1);
-                return;
+                {
+                    File.AppendAllText(LogFilePath, $"Глобальная ошибка: {ex.Message}\n");
+                    File.AppendAllText(ErrorLogFilePath, $"Глобальная ошибка:\n{ex}\n");
+                }
+                exitCode = 1;
             }
-
-            excelApp = new Application();
-            excelApp.DisplayAlerts = false;
-            excelApp.AskToUpdateLinks = false;
-            excelApp.AlertBeforeOverwriting = false;
-            #if DEBUG
-            excelApp.Visible = true;
-            #else
-            excelApp.Visible = false;
-            #endif
-
-            var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            finally
             {
-                ".xlsm", ".xlsb", ".xltx", ".xltm", ".xlt", ".xls", ".ods"
-            };
-
-            if (!CanWriteToFolder(options.TargetDirectory))
-            {
-                Console.WriteLine($"Недостаточно прав для создания файлов в директории {options.TargetDirectory}");
+                if (options.Verbose)
+                    Console.WriteLine("Очистка COM объекта фонового приложения excel");
                 if (options.LogInFile)
-                    File.AppendAllText(LogFilePath, $"Недостаточно прав для создания файлов в директории {options.TargetDirectory}\n");
-                Environment.Exit(1);
-                return;
-            }
+                    File.AppendAllText(LogFilePath, "Очистка COM объекта фонового приложения excel\n");
+                try { excelApp?.Quit(); } catch { }
+                Marshal.FinalReleaseComObject(excelApp);
+                excelApp = null;
 
-            ConvertAllToXlsx(
-                targetPath: options.TargetDirectory,
-                sourcePath: options.SourceDirectory,
-                allowedExtensions: allowedExtensions,
-                excelApp: excelApp,
-                overwrite: options.Overwrite,
-                verbose: options.Verbose,
-                logInFile: options.LogInFile);
+                if (options.Verbose)
+                    Console.WriteLine("Очистка процессов excel");
+                if (options.LogInFile)
+                    File.AppendAllText(LogFilePath, "Очистка процессов excel\n");
+                KillExcelProcesses(options.Verbose, options.LogInFile);
+            }
+            Environment.Exit(exitCode);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Глобальная ошибка: {ex.Message}");
+            Console.WriteLine($"Критическая ошибка: {ex.Message}");
             if (options.LogInFile)
             {
-                File.AppendAllText(LogFilePath, $"Глобальная ошибка: {ex.Message}\n");
-                File.AppendAllText(ErrorLogFilePath, $"Глобальная ошибка:\n{ex}\n");
+                File.AppendAllText(LogFilePath, $"Критическая ошибка: {ex.Message}\n");
+                File.AppendAllText(ErrorLogFilePath, $"Критическая ошибка:\n{ex}\n");
             }
-            exitCode = 1;
-        }
-        finally
-        {
-            if (options.Verbose)
-                Console.WriteLine("Очистка COM объекта фонового приложения excel");
-            if (options.LogInFile)
-                File.AppendAllText(LogFilePath, "Очистка COM объекта фонового приложения excel\n");
-            try { excelApp?.Quit(); } catch { }
-            Marshal.FinalReleaseComObject(excelApp);
-            excelApp = null;
-
-            if (options.Verbose)
-                Console.WriteLine("Очистка процессов excel");
-            if (options.LogInFile)
-                File.AppendAllText(LogFilePath, "Очистка процессов excel\n");
-            KillExcelProcesses(options.Verbose, options.LogInFile);
-        }
-        Environment.Exit(exitCode);
+            Environment.Exit(1);
+        }        
     }
 
     private static bool IsExcelInstalled()
