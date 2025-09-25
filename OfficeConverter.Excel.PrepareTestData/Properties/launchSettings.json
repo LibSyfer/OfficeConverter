@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "OfficeConverter.Excel.PrepareTestData": {
-      "commandName": "Project",
-      "commandLineArgs": "-s \"D:\\Convert\\Data\" -t \"D:\\Convert\\Data\" --verbose"
-    }
-  }
-}
